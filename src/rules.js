@@ -46,9 +46,19 @@ export function validateComment(textValue, { cfg, scene, previous = [] }) {
   const n = charCount(t);
   const { min_chars: min, max_chars: max, brand } = cfg.comment;
   const maxSim = previous.reduce((m, p) => Math.max(m, similarity(t, p)), 0);
+  const brandCount = t.split(brand).length - 1;
+  // 같은 말 반복(스팸처럼 보이는 댓글) — 4글자 이상 구간이 3번 이상 나오면 차단
+  const compact = t.replace(/\s+/g, '');
+  let repeated = false;
+  for (let i = 0; i + 4 <= compact.length && !repeated; i++) {
+    const piece = compact.slice(i, i + 4);
+    if (/^[ㄱ-ㅎㅏ-ㅣ.~!?]+$/.test(piece)) continue; // ㅋㅋㅋㅋ, ㅠㅠㅠㅠ, ... 는 허용
+    if (compact.split(piece).length - 1 >= 3) repeated = true;
+  }
   const checks = [
     { key: 'length', label: `${min}~${max}자`, ok: n >= min && n <= max, hard: true, detail: `${n}자` },
-    { key: 'brand', label: `${brand} 언급`, ok: t.includes(brand), hard: true },
+    { key: 'brand', label: `${brand} 한 번 언급`, ok: brandCount === 1, hard: true, detail: `${brandCount}번` },
+    { key: 'norepeat', label: '같은 말 반복 없음', ok: !repeated, hard: true },
     { key: 'scene', label: '장면 언급', ok: mentionsScene(t, scene), hard: false },
     { key: 'nolink', label: '링크·해시태그 없음', ok: !LINK.test(t) && !HASHTAG.test(t) && !MENTION.test(t), hard: true },
     { key: 'noreview', label: '지어낸 후기 아님', ok: !REVIEW.some((r) => r.test(t)), hard: true },

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>운명원 댓글 에이전트</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="logo"><i>운</i>운명원 댓글 에이전트<small>YouTube · 연애 영상</small></div>
+  <div class="hstat">
+    <span>오늘 게시 <b id="today">0 / 10</b><span class="meter"><span id="meter" style="width:0"></span></span></span>
+    <span>AI <b id="aiName">-</b></span>
+    <span>YouTube <b id="ytMode">-</b></span>
+    <span class="st warn" id="dryBadge" hidden>리허설 모드 · 게시 안 함</span>
+    <button class="btn-ghost" id="openSettings">계정 설정</button>
+  </div>
+</header>
+
+<main>
+  <!-- ① 영상 불러오기 -->
+  <section class="col">
+    <div class="colh"><div class="step">1</div><h2>영상 불러오기</h2><span class="hint" id="listHint"></span></div>
+    <div class="body">
+      <div class="seg" id="modeSeg">
+        <button class="on" data-mode="latest">최신 연애 영상</button>
+        <button data-mode="rising">뜨기 직전</button>
+      </div>
+      <div class="modehint" id="modeHint">이번 주 올라온 연애 영상을 최신순으로 보여줘요</div>
+      <button class="primary" id="loadBtn">영상 불러오기</button>
+      <form class="linkrow" id="linkForm"><input id="linkInput" placeholder="또는 유튜브 링크 붙여넣기"><button>추가</button></form>
+      <div class="list" id="list">
+        <div class="empty">버튼을 누르면 영상 목록이 여기에 나와요</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ② 영상 선택 -->
+  <section class="col">
+    <div class="colh"><div class="step">2</div><h2>영상 선택</h2><span class="hint" id="analyzeHint"></span></div>
+    <div class="body" id="detail">
+      <div class="empty big">왼쪽 목록에서 영상을 고르면<br>AI가 자막과 인기 댓글을 읽고 댓글 초안을 써요</div>
+    </div>
+  </section>
+
+  <!-- ③ 댓글 달기 -->
+  <section class="col">
+    <div class="colh"><div class="step">3</div><h2>댓글 달기</h2></div>
+    <div class="body">
+      <div>
+        <div class="label">계정</div>
+        <div class="acct" id="acct"></div>
+      </div>
+      <button class="primary accent" id="postBtn" disabled>댓글 달기</button>
+      <div class="why" id="why">영상을 고르면 누를 수 있어요</div>
+      <div class="steps" id="steps"></div>
+      <div id="jobBox"></div>
+      <div class="rule" id="ruleText">영상 하나에 댓글 하나 · 하루 최대 10개<br>실패하면 이유와 화면 캡처가 기록에 남아요</div>
+    </div>
+  </section>
+</main>
+
+<section class="log">
+  <div class="logh"><h2>기록</h2><span class="hint" id="logHint"></span><a class="btn-ghost" style="margin-left:auto" href="/api/log.csv">CSV 내보내기</a></div>
+  <table>
+    <thead><tr><th>시간</th><th>영상</th><th>계정</th><th>댓글</th><th>결과</th><th></th></tr></thead>
+    <tbody id="logBody"><tr><td colspan="6" class="emptyrow">아직 기록이 없어요</td></tr></tbody>
+  </table>
+</section>
+
+<dialog id="settings">
+  <div class="dlgh"><h2>계정 설정</h2><button class="btn-ghost" id="closeSettings">닫기</button></div>
+  <p class="dlgp">프로필마다 <b>서로 다른 구글 계정</b>으로 한 번만 로그인해 두면 됩니다.<br>
+  [로그인 창 열기] → 열린 크롬에서 구글 로그인 → 그 창을 <b>닫은 뒤</b> [로그인 확인]을 눌러 주세요.</p>
+  <div id="profRows"></div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

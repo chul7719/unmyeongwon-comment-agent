@@ -1,0 +1,8 @@
+node_modules/
+.env
+# 크롬 프로필(구글 로그인 쿠키) - 절대 올리지 않기
+profiles/
+# 실행 기록·캡처·초안 캐시
+data/*
+!data/.gitkeep
+*.log

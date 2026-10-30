@@ -27,13 +27,13 @@ export function similarity(a, b) {
   return inter / (A.size + B.size - inter);
 }
 
-// 장면 언급: AI가 고른 장면의 말이 댓글에 3글자 이상 겹치거나, 타임스탬프(4분, 4:12)를 언급
+// 장면 언급: AI가 고른 장면의 말이 댓글에 3글자 이상 겹치거나 장면 핵심어를 포함
+// ("4분쨯 대사"처럼 타임스탬프만 있고 내용이 없으면 인정하지 않음)
 function mentionsScene(textValue, scene) {
   if (!scene) return false;
   const c = textValue.replace(/\s+/g, '');
   const q = String(scene.quote || '').replace(/[\s"'“”‘’.,!?~]/g, '');
   for (let i = 0; i + 3 <= q.length; i++) if (c.includes(q.slice(i, i + 3))) return true;
-  if (scene.time && /\d+\s*분|\d+:\d{2}/.test(textValue)) return true;
   return (scene.keywords || []).some((k) => k && k.length >= 2 && c.includes(k.replace(/\s+/g, '')));
 }
 

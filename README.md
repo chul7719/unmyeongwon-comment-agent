@@ -83,6 +83,7 @@ src/store.js       기록, 하루 상한, 영상당 1개
 src/poster.js      크롬 프로필 열기, 타이핑, 게시, 확인
 public/            대시보드 화면
 scripts/selftest.js  npm run check : 게시 없이 규칙과 유튜브 읽기 점검
+scripts/try-draft.js node scripts/try-draft.js : 게시 없이 최신 영상 3개로 초안만 만들어 보기
 docs/제작의도.md    설계 이유
 docs/시연대본.md    2~3분 시연 영상 순서
 ```

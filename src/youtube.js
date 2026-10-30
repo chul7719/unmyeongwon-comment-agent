@@ -27,6 +27,7 @@ async function innertube(endpoint, body, client = { clientName: 'WEB', clientVer
     method: 'POST',
     headers: { 'content-type': 'application/json', 'user-agent': UA, 'accept-language': 'ko-KR,ko;q=0.9' },
     body: JSON.stringify({ context: { client: { ...client, hl: 'ko', gl: 'KR' } }, ...body }),
+    signal: AbortSignal.timeout(20000),
   });
   if (!r.ok) throw new Error(`YouTube ${endpoint} 응답 ${r.status}`);
   return r.json();
@@ -166,7 +167,7 @@ export async function risingVideos(cfg) {
 }
 
 async function watchPage(id) {
-  const html = await fetch(`https://www.youtube.com/watch?v=${id}&hl=ko&gl=KR`, { headers: { 'user-agent': UA, 'accept-language': 'ko-KR,ko;q=0.9' } }).then((r) => r.text());
+  const html = await fetch(`https://www.youtube.com/watch?v=${id}&hl=ko&gl=KR`, { headers: { 'user-agent': UA, 'accept-language': 'ko-KR,ko;q=0.9' }, signal: AbortSignal.timeout(20000) }).then((r) => r.text());
   const ver = html.match(/"INNERTUBE_CLIENT_VERSION":"([^"]+)"/);
   if (ver) webVersion = ver[1];
   const grab = (name) => {
@@ -186,7 +187,7 @@ export async function fetchTranscript(id) {
   if (!tracks.length) return { segments: [], kind: null };
   const ko = tracks.find((t) => t.languageCode === 'ko' && t.kind !== 'asr') || tracks.find((t) => t.languageCode === 'ko') || tracks[0];
   const url = ko.baseUrl.replace(/&fmt=[^&]*/, '') + '&fmt=json3';
-  const j = await fetch(url, { headers: { 'user-agent': UA } }).then((r) => r.json()).catch(() => null);
+  const j = await fetch(url, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(20000) }).then((r) => r.json()).catch(() => null);
   const segments = (j?.events || [])
     .filter((e) => e.segs)
     .map((e) => ({ t: Math.floor((e.tStartMs || 0) / 1000), text: e.segs.map((s) => s.utf8).join('').replace(/\s+/g, ' ').trim() }))
@@ -196,8 +197,11 @@ export async function fetchTranscript(id) {
 
 /** 인기 댓글 (좋아요 많은 순) */
 async function topCommentsKeyless(data, limit = 20) {
-  const tokens = walk(data, 'continuationCommand').map((c) => c.token);
-  for (const token of tokens.reverse()) {
+  // 댓글 영역(comment-item-section)의 토큰을 먼저, 없으면 나머지 토큰을 차례로
+  const section = walk(data, 'itemSectionRenderer').find((s) => s.sectionIdentifier === 'comment-item-section');
+  const primary = section ? walk(section, 'continuationCommand').map((c) => c.token) : [];
+  const tokens = [...new Set([...primary, ...walk(data, 'continuationCommand').map((c) => c.token).reverse()])];
+  for (const token of tokens.slice(0, 8)) {
     try {
       const res = await innertube('next', { continuation: token });
       const ents = walk(res, 'commentEntityPayload');
@@ -226,9 +230,16 @@ export async function videoDetail(id) {
   const publishDate = mf.publishDate || mf.uploadDate || null;
   const hoursAgo = publishDate ? (Date.now() - new Date(publishDate)) / 36e5 : null;
   const commentsDisabled = /댓글이 사용 중지|Comments are turned off/.test(JSON.stringify(walk(data, 'messageRenderer')));
+  const getComments = async () => {
+    if (commentsDisabled) return [];
+    if (API_KEY()) return topCommentsApi(id);
+    let c = await topCommentsKeyless(data).catch(() => []);
+    if (!c.length) { const again = await watchPage(id).catch(() => null); if (again?.data) c = await topCommentsKeyless(again.data).catch(() => []); }
+    return c;
+  };
   const [transcript, comments] = await Promise.all([
     fetchTranscript(id).catch(() => ({ segments: [], kind: null })),
-    commentsDisabled ? [] : API_KEY() ? topCommentsApi(id) : topCommentsKeyless(data),
+    getComments(),
   ]);
   return {
     id,

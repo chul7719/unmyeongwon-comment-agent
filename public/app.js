@@ -171,7 +171,7 @@ function renderDetail() {
   const a = S.analysis, v = a.video;
   const src = [`자막 <b>${a.sources.transcript || '없음'}</b>`, `인기 댓글 <b>${a.sources.comments}개</b>`];
   if (!a.sources.transcript) src.push('<b>제목·설명</b>으로 분석');
-  if (a.model) src.push(`<b>${esc(a.model.model)}</b>`);
+  if (a.model) src.push(`<b>${esc(a.model.lastUsed || a.model.model)}</b>`);
   const head = `<div class="vhead"><div class="vthumb"><img src="${esc(v.thumbnail)}"></div><div>
       <div class="vt"><a href="https://www.youtube.com/watch?v=${v.id}" target="_blank">${esc(v.title)}</a></div>
       <div class="vm">${esc(v.channel)} · 조회수 ${(v.views || 0).toLocaleString('ko-KR')}회 · ${esc(v.publishedText || '')}</div>

@@ -113,7 +113,19 @@ function transcriptText(segments, limit = 9000) {
   return take(out.slice(0, part)) + '...\n' + take(out.slice(part, part * 2)) + '...\n' + take(out.slice(part * 2));
 }
 
-const SYSTEM = (cfg) => `너는 유튜브에서 연애 영상을 방금 끝까지 본 20~30대 한국인 시청자다. 영상 내용에 진심으로 공감해서 댓글을 남긴다.
+// 말투(페르소나) 안내문. persona 가 'auto' 면 영상에 어울리는 말투를 AI 가 고른다 (최근 쓴 말투는 피함)
+function personaBlock(cfg, persona, recent = []) {
+  const list = cfg.personas || [];
+  const p = list.find((x) => x.id === persona);
+  if (p) return `[말투: ${p.name}] ${p.guide}\n말투 예시(그대로 베끼지 말 것): "${p.example}"\n세 후보 모두 이 말투로 쓴다. persona 값은 "${p.id}".`;
+  if (!list.length) return '';
+  const avoid = recent.filter(Boolean).slice(-2);
+  return `[말투] 아래 중 이 영상의 시청자층과 분위기에 가장 어울리는 말투 하나를 골라 세 후보 모두 그 말투로 쓴다.${avoid.length ? ` 최근에 쓴 말투(${avoid.join(', ')})는 가능하면 피한다.` : ''}\n` +
+    list.map((x) => `- ${x.id} (${x.name}): ${x.guide}`).join('\n') + '\n고른 말투의 id 를 persona 값에 적는다.';
+}
+
+const SYSTEM = (cfg, persona = 'auto', recent = []) => `너는 유튜브에서 연애 영상을 방금 끝까지 본 한국인 시청자다. 영상 내용에 진심으로 공감해서 댓글을 남긴다.
+${personaBlock(cfg, persona, recent)}
 목표: 이 댓글을 읽은 다른 시청자가 "나도 ${cfg.comment.brand}에서 연애 사주 한번 보고 싶다"는 마음이 들게 하는 것. 단, 광고처럼 보이면 실패다.
 
 순서대로 생각해라.
@@ -124,14 +136,14 @@ const SYSTEM = (cfg) => `너는 유튜브에서 연애 영상을 방금 끝까�
 comments 규칙 (모두 지켜라):
 - 공백 포함 ${cfg.comment.min_chars}~${cfg.comment.max_chars}자. ${cfg.comment.max_chars}자를 넘으면 무조건 탈락이다. 문장을 3~4개로 짧게.
 - scene 의 말이나 장면을 댓글 안에서 직접 짚는다 ("~라는 말", "~하는 부분", "N분쯤" 등).
-- 장면을 가리킬 때는 "4:12" 또는 "4분쨯"처럼 짧게. "4분 12초에"처럼 길게 쓰지 않는다. 타임스탬프 없이 대사만 짚어도 된다.
+- 장면을 가리킬 때는 "4:12" 또는 "4분쯤"처럼 짧게. "4분 12초에"처럼 길게 쓰지 않는다. 타임스탬프 없이 대사만 짚어도 된다.
 - "${cfg.comment.brand}"를 정확히 한 번 쓴다. ${cfg.comment.brand}는 '연애 사주 잘 본다고 들은 곳'으로만 말한다 ("잘 본다던데", "유명하다던데", "한번 보고 싶다").
 - 절대 금지: ${cfg.comment.brand}를 이용해 본 것처럼 쓰기(봤는데/받아봤는데/다녀왔는데/진짜 맞더라 등), 링크·URL·해시태그·@멘션, "강추/추천드려요/지금 바로" 같은 광고 말투, 영상 제목 그대로 반복.
-- 유튜브 댓글 말투: 짧은 문장, 말줄임(..), ㅠㅠ/ㅋㅋ는 자연스러울 때 한 번 정도. 이모지는 쓰지 않는다.
+- 유튜브 댓글답게 짧은 문장으로. ㅠㅠ/ㅋㅋ 양은 위 말투를 따른다. 이모지는 쓰지 않는다.
 - 넘어가는 표현을 매번 바꾼다. "타이밍이랑 운"만 반복하지 말고 영상 주제에 맞게 고른다 (예: "될 사람은 결국 되는 건지", "이 사람이랑 나랑 맞기는 한 건지", "내 짝은 언제 오는지", "다시 만날 인연인지", "올해 안에 연애운이 있긴 한지"). ${cfg.comment.brand} 문장도 매번 다르게 끝낸다.
 - 인기 댓글의 분위기는 참고하되 문장을 베끼지 않는다. 이전에 단 댓글과 시작 문장·구성을 다르게 한다.
 
-출력은 JSON 하나만: {"worry":"...","scene":{"time":"m:ss 또는 빈 문자열","quote":"...","keywords":["장면 핵심어 2~3개"]},"comments":["약 70자","약 90자","약 105자"]}
+출력은 JSON 하나만: {"persona":"말투 id","worry":"...","scene":{"time":"m:ss 또는 빈 문자열","quote":"...","keywords":["장면 핵심어 2~3개"]},"comments":["약 70자","약 90자","약 105자"]}
 
 예시) 남자 심리 분석 영상 → "근데 진짜 남자심리는 알다가도 모르겠다...ㅠㅠ 맨날 연애하면 차이기만 했던 1인. 결국 심리 알기는 개뿔 그냥 인연이면 만나는 것 같아요. ${cfg.comment.brand} 연애사주가 그렇게 잘 본다던데 나도 언제 짝 만나는지 한번 보고 싶다."`;
 
@@ -157,15 +169,18 @@ function score(v) {
 }
 
 /** 영상 분석 → 후보 3개 → 규칙을 모두 통과하는 가장 좋은 후보. 없으면 어긴 점을 알려 주고 최대 3번 */
-export async function draftComment(video, { cfg, previous = [] }) {
+export async function draftComment(video, { cfg, previous = [], persona = 'auto', recentPersonas = [] }) {
   let feedback = '', best = null;
+  const ids = (cfg.personas || []).map((p) => p.id);
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const raw = await callModel(SYSTEM(cfg), userPrompt(video, previous, feedback), attempt === 1 ? 0.9 : 0.7);
+    const raw = await callModel(SYSTEM(cfg, persona, recentPersonas), userPrompt(video, previous, feedback), attempt === 1 ? 0.9 : 0.7);
     const out = parseJson(raw);
+    // 말투를 직접 골랐으면 그것을, 자동이면 AI 가 고른 것을 (목록에 없으면 빈 값)
+    out.persona = ids.includes(persona) ? persona : ids.includes(out.persona) ? out.persona : null;
     const list = (Array.isArray(out.comments) ? out.comments : [out.comment]).map((c) => String(c || '').replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean);
     for (const comment of list) {
       const v = validateComment(comment, { cfg, scene: out.scene, previous });
-      const cand = { worry: out.worry, scene: out.scene, comment, validation: v, attempts: attempt, candidates: list.length };
+      const cand = { persona: out.persona, worry: out.worry, scene: out.scene, comment, validation: v, attempts: attempt, candidates: list.length };
       if (!best || score(v) < score(best.validation)) best = cand;
     }
     if (best?.validation.allOk) return best;

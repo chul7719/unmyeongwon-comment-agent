@@ -55,7 +55,20 @@ app.get('/api/state', wrap(() => ({
   today: todayCount(), max: cfg.limits.daily_max_comments,
   profiles: profilesView(), ai: aiInfo(), youtube: process.env.YOUTUBE_API_KEY ? 'Data API' : '키 없이',
   chrome: !!chromePath(), job, dryRun: DRY_RUN, comment: cfg.comment, rising: cfg.rising,
+  personas: (cfg.personas || []).map(({ id, name, short }) => ({ id, name, short })),
 })));
+
+// 영상 상세(자막·인기 댓글)는 30분간 재사용 - 말투만 바꿔 다시 쓸 때 빠르게
+const detailCache = new Map();
+async function cachedDetail(id) {
+  const hit = detailCache.get(id);
+  if (hit && Date.now() - hit.at < 30 * 60e3) return hit.v;
+  const v = await videoDetail(id);
+  detailCache.set(id, { v, at: Date.now() });
+  return v;
+}
+const personaIds = () => (cfg.personas || []).map((p) => p.id);
+const recentPersonas = () => log.all().filter((e) => e.persona).slice(-3).map((e) => e.persona);
 
 // ① 영상 불러오기
 app.get('/api/videos', wrap(async (req) => {
@@ -74,19 +87,25 @@ app.post('/api/videos/link', wrap(async (req) => {
 // ② 영상 선택 → 분석 + 초안 (한 번 만든 초안은 저장해 두고, [다시 쓰기]일 때만 새로 생성)
 app.post('/api/analyze', wrap(async (req) => {
   const { videoId, regenerate } = req.body || {};
+  const persona = personaIds().includes(req.body?.persona) ? req.body.persona : 'auto';
   if (!parseVideoId(videoId)) throw fail(400, '영상 ID가 올바르지 않아요');
-  const cached = drafts.get(videoId);
-  if (cached && !regenerate) return { ...cached, cached: true, validation: validateComment(cached.comment, { cfg, scene: cached.scene, previous: previousComments() }) };
+  const key = `${videoId}:${persona}`;
+  const cached = drafts.get(key);
+  if (cached && !regenerate) {
+    drafts.set(videoId, cached); // 마지막으로 본 초안 (검사·게시 때 장면 참고)
+    return { ...cached, cached: true, validation: validateComment(cached.comment, { cfg, scene: cached.scene, previous: previousComments() }) };
+  }
   const t0 = Date.now();
-  const v = await videoDetail(videoId);
+  const v = await cachedDetail(videoId);
   const base = {
     video: { id: v.id, title: v.title, channel: v.channel, views: v.views, publishedText: v.publishedText, thumbnail: v.thumbnail, commentsDisabled: v.commentsDisabled },
     sources: { transcript: v.transcript.segments.length ? v.transcript.kind : null, comments: v.comments.length, description: !!v.description },
   };
   let d;
-  try { d = await draftComment(v, { cfg, previous: previousComments() }); }
+  try { d = await draftComment(v, { cfg, previous: previousComments(), persona, recentPersonas: recentPersonas() }); }
   catch (e) { if (e.code === 'NO_AI') return { ...base, error: e.message, code: e.code }; throw e; }
-  const result = { ...base, worry: d.worry, scene: d.scene, comment: d.comment, attempts: d.attempts, ms: Date.now() - t0, model: aiInfo(), createdAt: new Date().toISOString() };
+  const result = { ...base, requestedPersona: persona, persona: d.persona, worry: d.worry, scene: d.scene, comment: d.comment, attempts: d.attempts, ms: Date.now() - t0, model: aiInfo(), createdAt: new Date().toISOString() };
+  drafts.set(key, result);
   drafts.set(videoId, result);
   return { ...result, validation: d.validation };
 }));
@@ -115,6 +134,7 @@ function pickProfile(requested) {
 // ③ 댓글 달기 - 운영 규칙은 여기서 강제
 app.post('/api/post', wrap(async (req) => {
   const { videoId, text, profile: requested, title } = req.body || {};
+  const persona = personaIds().includes(req.body?.persona) ? req.body.persona : null;
   if (job && !['done', 'failed'].includes(job.step)) throw fail(409, '다른 댓글을 게시하는 중이에요. 끝난 뒤 다시 눌러 주세요');
   if (!parseVideoId(videoId)) throw fail(400, '영상을 먼저 골라 주세요');
   const blocked = DRY_RUN ? null : checkPostAllowed({ videoId, cfg });
@@ -124,7 +144,7 @@ app.post('/api/post', wrap(async (req) => {
   if (!v.ok) throw fail(400, '댓글 규칙을 통과하지 못했어요: ' + v.checks.filter((c) => c.hard && !c.ok).map((c) => c.label).join(', '));
   const profile = pickProfile(requested);
 
-  const entry = log.add({ videoId, title: title || draft?.video?.title || videoId, profile, text: text.trim(), ...(DRY_RUN ? { status: 'rehearsal' } : {}) });
+  const entry = log.add({ videoId, title: title || draft?.video?.title || videoId, profile, persona, text: text.trim(), ...(DRY_RUN ? { status: 'rehearsal' } : {}) });
   job = { id: entry.id, videoId, profile, text: text.trim(), step: 'open', total: [...text.trim()].length, typed: 0, laps: {}, startedAt: Date.now() };
   broadcast('job', job);
 
@@ -153,8 +173,9 @@ app.post('/api/post', wrap(async (req) => {
 app.get('/api/log', wrap(() => ({ entries: log.all().slice().reverse() })));
 app.get('/api/log.csv', (req, res) => {
   const esc = (s) => `"${String(s ?? '').replace(/"/g, '""')}"`;
-  const rows = [['시간', '영상ID', '영상 제목', '계정', '댓글', '결과', '사유', '댓글 링크']]
-    .concat(log.all().map((e) => [new Date(e.time).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), e.videoId, e.title, e.profile, e.text, e.status, e.reason, e.commentUrl]));
+  const pname = (id) => (cfg.personas || []).find((p) => p.id === id)?.name || '';
+  const rows = [['시간', '영상ID', '영상 제목', '계정', '말투', '댓글', '결과', '사유', '댓글 링크']]
+    .concat(log.all().map((e) => [new Date(e.time).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), e.videoId, e.title, e.profile, pname(e.persona), e.text, e.status, e.reason, e.commentUrl]));
   res.set({ 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="comment-log.csv"' });
   res.send('\ufeff' + rows.map((r) => r.map(esc).join(',')).join('\r\n'));
 });

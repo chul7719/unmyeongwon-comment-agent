@@ -5,8 +5,9 @@ const fmtNum = (n) => (n >= 10000 ? (n / 10000).toFixed(n >= 100000 ? 0 : 1) + '
 
 const S = {
   mode: 'latest', videos: [], selected: null, analysis: null, text: '', validation: null,
-  profile: 'auto', state: null, job: null, analyzing: false,
+  profile: 'auto', persona: 'auto', state: null, job: null, analyzing: false,
 };
+const personaName = (id) => S.state?.personas?.find((p) => p.id === id)?.name || '';
 
 async function api(url, opts = {}) {
   const r = await fetch(url, { headers: { 'content-type': 'application/json' }, ...opts, body: opts.body ? JSON.stringify(opts.body) : undefined });
@@ -132,7 +133,7 @@ async function selectVideo(v, regenerate = false) {
   };
   tick(); const timer = setInterval(tick, 1600);
   try {
-    const a = await api('/api/analyze', { method: 'POST', body: { videoId: v.id, regenerate } });
+    const a = await api('/api/analyze', { method: 'POST', body: { videoId: v.id, regenerate, persona: S.persona } });
     if (S.selected?.id !== v.id) return;
     S.analysis = a; S.text = a.comment || ''; S.validation = a.validation || null;
     $('#analyzeHint').textContent = a.error ? '' : a.cached ? '저장된 초안' : `AI 분석 완료 · ${(a.ms / 1000).toFixed(0)}초`;
@@ -185,15 +186,57 @@ function renderDetail() {
     $('#detail').innerHTML = head + disabledNote + `
       <div><div class="label">영상 속 고민</div><div class="worry">${esc(a.worry)}</div>
       <div class="scene">짚은 장면 ${time}<b>${esc(a.scene?.quote || '')}</b></div></div>
-      <div><div class="label">댓글 초안 <span style="font-weight:400">· 클릭해서 직접 고칠 수 있어요</span></div>
+      ${personaChips()}
+      <div id="draftWrap"><div class="label">댓글 초안${a.persona ? ` · <span class="pname">${esc(personaName(a.persona))}</span> 말투` : ''} <span style="font-weight:400">· 클릭해서 직접 고칠 수 있어요</span></div>
       <div class="draft" id="draft" contenteditable="plaintext-only">${draftHtml(S.text)}</div>
       <div class="dfoot" id="dfoot"></div></div>`;
   }
+  bindPersonaChips();
   const d = $('#draft');
   d.addEventListener('focus', () => { d.textContent = S.text; });
   d.addEventListener('blur', () => { d.innerHTML = draftHtml(S.text); });
   d.addEventListener('input', () => { S.text = d.innerText.replace(/\n/g, ' '); renderFoot(true); clearTimeout(d.t); d.t = setTimeout(revalidate, 350); });
   renderFoot();
+}
+
+/* 말투 고르기: 자동(영상에 맞게 AI가 선택) + 설정의 말투들 */
+function personaChips() {
+  const ps = S.state?.personas || [];
+  if (!ps.length) return '';
+  const picked = S.persona === 'auto' ? S.analysis?.persona : null;
+  return `<div><div class="label">말투</div><div class="pchips" id="pchips">
+    <button data-persona="auto" class="${S.persona === 'auto' ? 'on' : ''}" title="영상 분위기에 맞는 말투를 AI가 골라요 (최근 쓴 말투는 피해요)">자동${picked ? ` → ${esc(personaName(picked))}` : ''}</button>
+    ${ps.map((p) => `<button data-persona="${esc(p.id)}" class="${S.persona === p.id ? 'on' : ''} ${picked === p.id ? 'picked' : ''}" title="${esc(p.short)}">${esc(p.name)}</button>`).join('')}
+  </div></div>`;
+}
+function bindPersonaChips() {
+  const box = $('#pchips'); if (!box) return;
+  box.onclick = (e) => {
+    const b = e.target.closest('button[data-persona]'); if (!b || S.analyzing) return;
+    if (b.dataset.persona === S.persona) return;
+    S.persona = b.dataset.persona;
+    redraft(false);
+  };
+}
+// 영상 분석은 그대로 두고 초안만 다시 (말투 변경·다시 쓰기)
+async function redraft(regenerate) {
+  const v = S.selected; if (!v) return;
+  S.analyzing = true; renderPost();
+  [...document.querySelectorAll('#pchips button')].forEach((x) => x.classList.toggle('on', x.dataset.persona === S.persona));
+  const label = S.persona === 'auto' ? '영상에 맞는 말투를 고르고' : `${personaName(S.persona)} 말투로`;
+  const wrap = $('#draftWrap');
+  if (wrap) wrap.innerHTML = `<div class="label">댓글 초안</div><div class="draft drafting"><span class="spin"></span>${label} ${regenerate ? '다시 ' : ''}쓰는 중...</div>`;
+  $('#analyzeHint').textContent = 'AI 초안 쓰는 중...';
+  try {
+    const a = await api('/api/analyze', { method: 'POST', body: { videoId: v.id, regenerate, persona: S.persona } });
+    if (S.selected?.id !== v.id) return;
+    S.analysis = a; S.text = a.comment || ''; S.validation = a.validation || null;
+    $('#analyzeHint').textContent = a.error ? '' : a.cached ? '저장된 초안' : `AI 초안 완료 · ${(a.ms / 1000).toFixed(0)}초`;
+    renderDetail();
+  } catch (e) {
+    toast('초안을 쓰지 못했어요: ' + e.message, true);
+    if (S.analysis) renderDetail();
+  } finally { S.analyzing = false; renderPost(); }
 }
 
 async function revalidate() {
@@ -210,7 +253,7 @@ function renderFoot(countOnly) {
   if (countOnly && f.firstElementChild) { f.firstElementChild.outerHTML = countHtml; return; }
   const checks = (S.validation?.checks || []).map((c) => `<span class="check ${c.ok ? '' : c.hard ? 'bad' : 'soft'}" title="${esc(c.detail || '')}">${c.ok ? '' : '✕ '}${esc(c.label)}</span>`).join('');
   f.innerHTML = countHtml + checks + `<div class="r">${S.analysis?.error ? '' : '<button class="btn-ghost" id="regen">다시 쓰기</button>'}</div>`;
-  const rg = $('#regen'); if (rg) rg.onclick = () => selectVideo(S.selected, true);
+  const rg = $('#regen'); if (rg) rg.onclick = () => redraft(true);
 }
 
 /* ---------- ③ 댓글 달기 ---------- */
@@ -238,7 +281,7 @@ $('#postBtn').addEventListener('click', async () => {
   if (postBlocker()) return;
   $('#postBtn').disabled = true;
   try {
-    const r = await api('/api/post', { method: 'POST', body: { videoId: S.selected.id, text: S.text.trim(), profile: S.profile, title: S.selected.title } });
+    const r = await api('/api/post', { method: 'POST', body: { videoId: S.selected.id, text: S.text.trim(), profile: S.profile, title: S.selected.title, persona: S.analysis?.persona } });
     toast(`${r.profile} 프로필로 게시를 시작해요`);
   } catch (e) { toast(e.message, true); renderPost(); }
 });
@@ -288,7 +331,7 @@ async function loadLog() {
     const [cls, label] = ST[e.status] || ['run', e.status];
     const t = new Date(e.time);
     const when = t.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }) === today ? t.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul' }) : t.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul' });
-    return `<tr><td class="mono">${when}</td><td class="v"><a style="color:inherit;font-weight:500;white-space:normal" href="https://www.youtube.com/watch?v=${esc(e.videoId)}" target="_blank">${esc(e.title)}</a></td><td>${esc(e.profile)}</td>
+    return `<tr><td class="mono">${when}</td><td class="v"><a style="color:inherit;font-weight:500;white-space:normal" href="https://www.youtube.com/watch?v=${esc(e.videoId)}" target="_blank">${esc(e.title)}</a></td><td>${esc(e.profile)}${e.persona ? `<div class="psub">${esc(personaName(e.persona))}</div>` : ''}</td>
       <td class="c">${esc(e.text)}${e.reason ? `<div class="reason">${esc(e.reason)}</div>` : ''}</td><td><span class="st ${cls}">${label}</span></td>
       <td>${e.commentUrl ? `<a href="${esc(e.commentUrl)}" target="_blank">댓글 보기</a>` : ''}${e.shot ? `<a href="/shots/${esc(e.shot)}" target="_blank">캡처</a>` : ''}</td></tr>`;
   }).join('') : '<tr><td colspan="6" class="emptyrow">아직 기록이 없어요</td></tr>';

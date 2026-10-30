@@ -163,3 +163,13 @@ dialog::backdrop{background:rgba(28,25,23,.35)}
 .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:20;max-width:600px}
 .toast.show{opacity:1;transform:translateX(-50%)}
 .toast.err{background:var(--err)}
+
+/* 말투 */
+.pchips{display:flex;gap:6px;flex-wrap:wrap}
+.pchips button{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px;font-size:12.5px;cursor:pointer;color:var(--ink)}
+.pchips button:hover{background:var(--soft)}
+.pchips button.on{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:600}
+.pchips button.picked{border-color:var(--accent);color:var(--accent);font-weight:600}
+.pname{color:var(--accent)}
+.draft.drafting{display:flex;align-items:center;gap:10px;color:var(--sub);font-size:14px;border-style:dashed;border-color:var(--line)}
+.psub{font-size:11px;color:var(--accent);margin-top:2px}

@@ -7,7 +7,7 @@ import { latestVideos, risingVideos, videoDetail, videoCard, parseVideoId } from
 import { draftComment, aiInfo } from './src/ai.js';
 import { validateComment } from './src/rules.js';
 import { log, todayCount, profileTodayCount, videoClaim, checkPostAllowed, previousComments, lastUsedAt, drafts, profileState, SHOTS } from './src/store.js';
-import { postComment, openForLogin, checkLogin, chromePath } from './src/poster.js';
+import { postComment, openForLogin, checkLogin, chromePath, logoutProfile, profileDir } from './src/poster.js';
 
 const cfg = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 // 리허설 모드: 타이핑까지만 하고 게시하지 않음 (기록·상한에 포함되지 않음)
@@ -39,7 +39,8 @@ function profilesView() {
   const st = profileState.all();
   return cfg.profiles.map((name) => ({
     name,
-    loggedIn: st[name]?.loggedIn ?? null, // null = 아직 확인 안 함
+    loggedIn: fs.existsSync(profileDir(name)) ? st[name]?.loggedIn ?? null : st[name] ? false : null, // null = 아직 확인 안 함
+    hasProfile: fs.existsSync(profileDir(name)),
     checkedAt: st[name]?.checkedAt || null,
     today: profileTodayCount(name),
     lastUsed: lastUsedAt(name),
@@ -194,6 +195,29 @@ app.post('/api/profiles/:name/check', wrap(async (req) => {
     profileState.set(name, { loggedIn: r.loggedIn, checkedAt: new Date().toISOString() });
     return r;
   } catch (e) { throw fail(409, e.message); }
+}));
+
+// 로그아웃 (개별 / 일괄). 게시 중인 계정은 로그아웃하지 않는다
+const jobRunning = () => job && !['done', 'failed'].includes(job.step);
+async function doLogout(name) {
+  if (jobRunning() && job.profile === name) throw fail(409, `${name}으로 게시 중이에요. 끝난 뒤 로그아웃해 주세요`);
+  try {
+    const r = await logoutProfile(name);
+    profileState.set(name, { loggedIn: false, checkedAt: new Date().toISOString(), loggedOutAt: new Date().toISOString() });
+    return { name, ok: true, removed: r.removed };
+  } catch (e) { throw fail(e.status || 409, e.message); }
+}
+app.post('/api/profiles/logout-all', wrap(async () => {
+  if (jobRunning()) throw fail(409, '게시 중이에요. 끝난 뒤 다시 눌러 주세요');
+  const results = [];
+  for (const name of cfg.profiles) {
+    try { results.push(await doLogout(name)); } catch (e) { results.push({ name, ok: false, error: e.message }); }
+  }
+  return { results };
+}));
+app.post('/api/profiles/:name/logout', wrap(async (req) => {
+  if (!cfg.profiles.includes(req.params.name)) throw fail(404, '없는 프로필이에요');
+  return doLogout(req.params.name);
 }));
 
 const port = +process.env.PORT || cfg.port;

@@ -342,13 +342,32 @@ $('#openSettings').onclick = () => $('#settings').showModal();
 $('#closeSettings').onclick = () => $('#settings').close();
 function renderProfilesDialog() {
   $('#profRows').innerHTML = S.state.profiles.map((p) => `<div class="prow"><b><span class="dot ${p.loggedIn ? 'ok' : p.loggedIn === false ? 'no' : ''}"></span>${esc(p.name)}<small>${p.loggedIn ? '로그인됨' : p.loggedIn === false ? '로그인 안 됨' : '확인 전'}</small></b>
-    <button class="btn-ghost" data-login="${esc(p.name)}">로그인 창 열기</button><button class="btn-ghost" data-check="${esc(p.name)}">로그인 확인</button></div>`).join('');
+    <button class="btn-ghost" data-login="${esc(p.name)}">로그인 창 열기</button><button class="btn-ghost" data-check="${esc(p.name)}">로그인 확인</button>
+    <button class="btn-ghost danger" data-logout="${esc(p.name)}" ${p.hasProfile ? '' : 'disabled title="로그인된 적이 없어요"'}>로그아웃</button></div>`).join('') +
+    `<div class="pall"><button class="btn-ghost danger" id="logoutAll" ${S.state.profiles.some((p) => p.hasProfile) ? '' : 'disabled'}>모든 계정 로그아웃</button></div>`;
+  const all = $('#logoutAll');
+  if (all) all.onclick = async () => {
+    if (!confirm('모든 계정을 로그아웃할까요?\n각 프로필의 구글 로그인 정보가 지워져서, 다시 쓰려면 로그인을 다시 해야 해요.')) return;
+    all.disabled = true; all.textContent = '로그아웃 중...';
+    try {
+      const { results } = await api('/api/profiles/logout-all', { method: 'POST' });
+      const bad = results.filter((r) => !r.ok);
+      toast(bad.length ? `일부 실패: ${bad.map((r) => `${r.name} (${r.error})`).join(', ')}` : '모든 계정을 로그아웃했어요', bad.length > 0);
+    } catch (err) { toast(err.message, true); }
+    await loadState();
+  };
 }
 $('#profRows').addEventListener('click', async (e) => {
-  const b = e.target.closest('button'); if (!b) return;
+  const b = e.target.closest('button[data-login],button[data-check],button[data-logout]'); if (!b) return;
   b.disabled = true;
   try {
     if (b.dataset.login) { await api(`/api/profiles/${encodeURIComponent(b.dataset.login)}/login`, { method: 'POST' }); toast('크롬 창에서 구글 로그인 후, 창을 닫고 [로그인 확인]을 눌러 주세요'); }
+    if (b.dataset.logout) {
+      if (!confirm(`${b.dataset.logout} 계정을 로그아웃할까요?\n이 프로필의 구글 로그인 정보가 지워져서, 다시 쓰려면 로그인을 다시 해야 해요.`)) { b.disabled = false; return; }
+      b.textContent = '로그아웃 중...';
+      await api(`/api/profiles/${encodeURIComponent(b.dataset.logout)}/logout`, { method: 'POST' });
+      toast(`${b.dataset.logout} 로그아웃했어요`);
+    }
     if (b.dataset.check) { b.textContent = '확인 중...'; const r = await api(`/api/profiles/${encodeURIComponent(b.dataset.check)}/check`, { method: 'POST' }); toast(r.loggedIn ? `${b.dataset.check} 로그인 확인됨` : `${b.dataset.check} 로그인이 안 돼 있어요`, !r.loggedIn); }
   } catch (err) { toast(err.message, true); }
   await loadState();

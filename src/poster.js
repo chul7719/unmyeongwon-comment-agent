@@ -82,6 +82,29 @@ export async function checkLogin(name) {
   } finally { await close(name, ctx); }
 }
 
+/**
+ * 로그아웃: ① 창을 띄우지 않고 구글 로그아웃 주소를 열어 세션을 끊고
+ * ② 전용 프로필 폴더(쿠키 포함)를 지운다. 평소 쓰는 크롬 프로필은 건드리지 않는다.
+ */
+export async function logoutProfile(name) {
+  const dir = profileDir(name);
+  if (!fs.existsSync(dir)) return { removed: false };
+  if (open.has(name)) throw new Error(`${name} 프로필이 지금 사용 중이에요. 끝난 뒤 다시 눌러 주세요`);
+  const ctx = await launch(name, { headless: true }); // 창이 열려 있으면 여기서 '창을 닫아 달라'는 오류
+  try {
+    const page = ctx.pages()[0] || (await ctx.newPage());
+    await page.goto('https://accounts.google.com/Logout?hl=ko&continue=https%3A%2F%2Fwww.youtube.com%2F', { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
+    await sleep(1500);
+  } finally { await close(name, ctx); }
+  for (let i = 0; ; i++) {
+    try { fs.rmSync(dir, { recursive: true, force: true }); break; } catch (e) {
+      if (i >= 6) throw new Error(`${name} 프로필 파일을 지우지 못했어요. 그 프로필의 크롬 창을 모두 닫고 다시 눌러 주세요`);
+      await sleep(700);
+    }
+  }
+  return { removed: true };
+}
+
 const norm = (s) => String(s || '').replace(/\s+/g, '');
 
 /**

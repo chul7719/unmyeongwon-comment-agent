@@ -37,19 +37,19 @@ async function loadState() {
 }
 
 function autoTarget() {
-  const ps = S.state.profiles.filter((p) => p.loggedIn !== false);
+  const ps = S.state.profiles.filter((p) => p.loggedIn === true);
   ps.sort((a, b) => a.today - b.today || String(a.lastUsed).localeCompare(String(b.lastUsed)));
   return ps[0]?.name;
 }
 
 function renderAccounts() {
   const ps = S.state.profiles;
-  if (S.profile !== 'auto' && ps.find((p) => p.name === S.profile)?.loggedIn === false) S.profile = 'auto';
+  if (S.profile !== 'auto' && ps.find((p) => p.name === S.profile)?.loggedIn !== true) S.profile = 'auto';
   const dot = (p) => `<span class="dot ${p.loggedIn ? 'ok' : p.loggedIn === false ? 'no' : ''}"></span>`;
-  const sub = (p) => (p.loggedIn === false ? '로그인 필요' : `오늘 ${p.today}개`);
+  const sub = (p) => (p.loggedIn === false ? '로그인 필요' : p.loggedIn == null ? '로그인 확인 전' : `오늘 ${p.today}개`);
   $('#acct').innerHTML =
     `<button data-p="auto" class="${S.profile === 'auto' ? 'on' : ''}"><b>자동 배정</b><small>→ ${esc(autoTarget() || '없음')}</small></button>` +
-    ps.map((p) => `<button data-p="${esc(p.name)}" class="${S.profile === p.name ? 'on' : ''}" ${p.loggedIn === false ? 'disabled' : ''}><b>${dot(p)}${esc(p.name)}</b><small>${sub(p)}</small></button>`).join('');
+    ps.map((p) => `<button data-p="${esc(p.name)}" class="${S.profile === p.name ? 'on' : ''}" ${p.loggedIn !== true ? 'disabled' : ''} title="${p.loggedIn !== true ? '[계정 설정]에서 로그인 후 [로그인 확인]을 눌러 주세요' : ''}"><b>${dot(p)}${esc(p.name)}</b><small>${sub(p)}</small></button>`).join('');
 }
 $('#acct').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-p]'); if (!b || b.disabled) return;
@@ -224,7 +224,7 @@ function postBlocker() {
   if (!S.text.trim()) return '댓글 초안이 비어 있어요';
   const bad = (S.validation?.checks || []).filter((c) => c.hard && !c.ok);
   if (bad.length) return '규칙 확인: ' + bad.map((c) => c.label).join(', ');
-  if (!S.state?.profiles.some((p) => p.loggedIn !== false)) return '로그인된 계정이 없어요. [계정 설정]을 눌러 주세요';
+  if (!S.state?.profiles.some((p) => p.loggedIn === true)) return '로그인이 확인된 계정이 없어요. [계정 설정]에서 로그인 후 [로그인 확인]을 눌러 주세요';
   return null;
 }
 function renderPost() {

@@ -99,13 +99,15 @@ app.post('/api/validate', wrap((req) => {
 }));
 
 // 계정 고르기: 자동 배정이면 오늘 적게 쓴 계정 → 가장 오래 전에 쓴 계정 순
+// 자동 배정은 [로그인 확인]을 통과한 계정만 쓴다 (확인 전 계정을 골라 실패하는 일 방지)
 function pickProfile(requested) {
-  const ps = profilesView().filter((p) => p.loggedIn !== false);
+  const ps = profilesView().filter((p) => p.loggedIn === true);
   if (requested && requested !== 'auto') {
     if (!cfg.profiles.includes(requested)) throw fail(400, '없는 프로필이에요');
+    if (!fs.existsSync(path.resolve('profiles', requested))) throw fail(400, `${requested} 프로필은 아직 로그인한 적이 없어요. [계정 설정]에서 먼저 로그인해 주세요`);
     return requested;
   }
-  if (!ps.length) throw fail(400, '로그인된 프로필이 없어요. [계정 설정]에서 로그인해 주세요');
+  if (!ps.length) throw fail(400, '로그인이 확인된 계정이 없어요. [계정 설정]에서 로그인 후 [로그인 확인]을 눌러 주세요');
   ps.sort((a, b) => a.today - b.today || String(a.lastUsed).localeCompare(String(b.lastUsed)));
   return ps[0].name;
 }

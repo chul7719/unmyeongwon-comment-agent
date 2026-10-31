@@ -30,7 +30,9 @@ async function loadState() {
   $('#aiName').textContent = ai ? { gemini: 'Gemini', anthropic: 'Claude', openai: 'GPT' }[ai.provider] : '키 없음';
   $('#aiName').className = ai ? '' : 'warn';
   $('#ytMode').textContent = youtube;
-  $('#dryBadge').hidden = !S.state.dryRun;
+  // 실제 모드를 그대로 보여 준다 (리허설=노랑, 리얼=빨강)
+  $('#dryBadge').className = 'st ' + (S.state.dryRun ? 'warn' : 'real');
+  $('#dryBadge').textContent = S.state.dryRun ? '리허설 모드 · 게시 안 함' : '리얼 모드 · 실제 게시';
   $('#postBtn').textContent = S.state.dryRun ? '댓글 달기 (리허설)' : '댓글 달기';
   $('#ruleText').innerHTML = `영상 하나에 댓글 하나 · 하루 최대 ${max}개 · 한 영상엔 계정 하나<br>실패하면 이유와 화면 캡처가 기록에 남아요`;
   if (!S.job && S.state.job) S.job = S.state.job;

@@ -178,3 +178,7 @@ dialog::backdrop{background:rgba(28,25,23,.35)}
 .btn-ghost.danger{color:var(--err)}
 .btn-ghost.danger:hover:not(:disabled){background:var(--err-soft);border-color:#FCA5A5}
 .pall{display:flex;justify-content:flex-end;padding-top:12px;border-top:1px solid var(--line)}
+
+/* hidden 속성이 다른 display 규칙에 덮이지 않게 */
+[hidden]{display:none!important}
+.st.real{background:var(--err);color:#fff}

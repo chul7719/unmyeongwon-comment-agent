@@ -182,3 +182,13 @@ dialog::backdrop{background:rgba(28,25,23,.35)}
 /* hidden 속성이 다른 display 규칙에 덮이지 않게 */
 [hidden]{display:none!important}
 .st.real{background:var(--err);color:#fff}
+
+/* 모드 배지(버튼) · 리허설 성공 확인창 */
+.modebtn{border:0;cursor:pointer;font-family:inherit}
+#realDlg{width:520px}
+.dlgf{display:flex;align-items:center;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.dlgf.stack{flex-direction:column;align-items:stretch}
+.row2{display:flex;gap:6px}.row2>*{flex:1}
+.realbox{background:var(--soft);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.realtext{font-size:14.5px;line-height:1.6}
+.muted{color:var(--sub);font-size:12px}

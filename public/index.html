@@ -14,7 +14,7 @@
     <span>오늘 게시 <b id="today">0 / 10</b><span class="meter"><span id="meter" style="width:0"></span></span></span>
     <span>AI <b id="aiName">-</b></span>
     <span>YouTube <b id="ytMode">-</b></span>
-    <span class="st warn" id="dryBadge">모드 확인 중</span>
+    <button class="st warn modebtn" id="dryBadge" title="눌러서 리허설/리얼 전환">모드 확인 중</button>
     <button class="btn-ghost" id="openSettings">계정 설정</button>
   </div>
 </header>
@@ -75,6 +75,17 @@
   <p class="dlgp">프로필마다 <b>서로 다른 구글 계정</b>으로 한 번만 로그인해 두면 됩니다.<br>
   [로그인 창 열기] → 열린 크롬에서 구글 로그인 → 그 창을 <b>닫은 뒤</b> [로그인 확인]을 눌러 주세요.</p>
   <div id="profRows"></div>
+</dialog>
+
+<!-- 리허설 성공 → 리얼로 게시할지 -->
+<dialog id="realDlg">
+  <div class="dlgh"><h2>리허설 성공</h2></div>
+  <p class="dlgp">크롬 열기부터 한 글자씩 입력까지 문제없이 끝났어요. 게시는 하지 않았어요.<br>이 댓글을 <b>리얼 모드로 바로 게시</b>할까요?</p>
+  <div class="realbox"><div class="muted" id="realMeta"></div><div class="realtext" id="realText"></div></div>
+  <div class="dlgf stack">
+    <button class="primary accent" id="realGo">리얼 모드로 바꾸고 바로 게시</button>
+    <div class="row2"><button class="btn-ghost" id="realOnly">리얼 모드로만 바꾸기</button><button class="btn-ghost" id="realStay">리허설 계속</button></div>
+  </div>
 </dialog>
 
 <div class="toast" id="toast"></div>

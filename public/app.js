@@ -31,7 +31,7 @@ async function loadState() {
   $('#aiName').className = ai ? '' : 'warn';
   $('#ytMode').textContent = youtube;
   // 실제 모드를 그대로 보여 준다 (리허설=노랑, 리얼=빨강)
-  $('#dryBadge').className = 'st ' + (S.state.dryRun ? 'warn' : 'real');
+  $('#dryBadge').className = 'st modebtn ' + (S.state.dryRun ? 'warn' : 'real');
   $('#dryBadge').textContent = S.state.dryRun ? '리허설 모드 · 게시 안 함' : '리얼 모드 · 실제 게시';
   $('#postBtn').textContent = S.state.dryRun ? '댓글 달기 (리허설)' : '댓글 달기';
   $('#ruleText').innerHTML = `영상 하나에 댓글 하나 · 하루 최대 ${max}개 · 한 영상엔 계정 하나<br>실패하면 이유와 화면 캡처가 기록에 남아요`;
@@ -54,10 +54,48 @@ function renderAccounts() {
     `<button data-p="auto" class="${S.profile === 'auto' ? 'on' : ''}"><b>자동 배정</b><small>→ ${esc(autoTarget() || '없음')}</small></button>` +
     ps.map((p) => `<button data-p="${esc(p.name)}" class="${S.profile === p.name ? 'on' : ''}" ${p.loggedIn !== true ? 'disabled' : ''} title="${p.loggedIn !== true ? '[계정 설정]에서 로그인 후 [로그인 확인]을 눌러 주세요' : ''}"><b>${dot(p)}${esc(p.name)}</b><small>${sub(p)}</small></button>`).join('');
 }
-$('#acct').addEventListener('click', (e) => {
+$('#acct').addEventListener('click', async (e) => {
   const b = e.target.closest('button[data-p]'); if (!b || b.disabled) return;
-  S.profile = b.dataset.p; renderAccounts();
+  S.profile = b.dataset.p; renderAccounts(); renderPost();
+  // 계정을 누르면 그 크롬 프로필로 유튜브를 별도로 열지 물어본다
+  if (b.dataset.p === 'auto') return;
+  const name = b.dataset.p;
+  if (!confirm(`${name} 크롬 프로필로 유튜브를 별도 창으로 열까요?\n\n게시하기 전에는 이 창을 닫아 주세요. (같은 프로필이 열려 있으면 자동 게시가 막혀요)`)) return;
+  try { await api(`/api/profiles/${encodeURIComponent(name)}/open`, { method: 'POST' }); toast(`${name} 프로필로 유튜브를 열었어요`); }
+  catch (err) { toast(err.message, true); }
 });
+
+/* ---------- 실행 모드: 시작은 항상 리허설, 배지를 누르면 전환 ---------- */
+async function switchMode(mode) { await api('/api/mode', { method: 'POST', body: { mode } }); await loadState(); }
+$('#dryBadge').addEventListener('click', async () => {
+  if (!S.state) return;
+  const toReal = S.state.dryRun;
+  if (!confirm(toReal ? '리얼 모드로 바꿀까요?\n이제부터 [댓글 달기]를 누르면 실제로 게시돼요.' : '리허설 모드로 돌아갈까요?\n타이핑까지만 하고 게시하지 않아요.')) return;
+  try { await switchMode(toReal ? 'real' : 'rehearsal'); toast(toReal ? '리얼 모드로 바꿨어요' : '리허설 모드로 바꿨어요'); } catch (err) { toast(err.message, true); }
+});
+
+/* ---------- 리허설 성공 → 리얼로 게시할지 묻기 ---------- */
+let realJob = null;
+function askReal(j) {
+  if ($('#realDlg').open || S.realAsked === j.id) return;
+  S.realAsked = j.id; realJob = j;
+  $('#realMeta').textContent = `${j.title || j.videoId} · ${j.profile}${j.persona ? ' · ' + personaName(j.persona) : ''}`;
+  $('#realText').textContent = j.text;
+  $('#realDlg').showModal();
+}
+$('#realStay').onclick = () => $('#realDlg').close();
+$('#realOnly').onclick = async () => {
+  try { await switchMode('real'); toast('리얼 모드로 바꿨어요. 다음 [댓글 달기]부터 실제로 게시돼요'); } catch (e) { toast(e.message, true); }
+  $('#realDlg').close();
+};
+$('#realGo').onclick = async () => {
+  const j = realJob; $('#realDlg').close();
+  try {
+    await switchMode('real');
+    const r = await api('/api/post', { method: 'POST', body: { videoId: j.videoId, text: j.text, profile: j.profile, title: j.title, persona: j.persona } });
+    toast(`리얼 모드 · ${r.profile}로 게시를 시작해요`);
+  } catch (e) { toast(e.message, true); }
+};
 
 /* ---------- ① 영상 불러오기 ---------- */
 $('#modeSeg').addEventListener('click', (e) => {
@@ -282,7 +320,7 @@ function renderPost() {
 $('#postBtn').addEventListener('click', async () => {
   if (postBlocker()) return;
   // 리얼 모드에서는 게시 전에 한 번 더 확인
-  if (!S.state.dryRun && !confirm('리얼 모드예요. 이 댓글이 유튜브에 실제로 게시돼요.\n계속할까요?\n\n(연습만 하려면 바탕화면 [운명원 댓글 에이전트 (리허설)] 아이콘으로 켜세요)')) return;
+  if (!S.state.dryRun && !confirm('리얼 모드예요. 이 댓글이 유튜브에 실제로 게시돼요.\n계속할까요?\n\n(연습으로 돌아가려면 상단 빨간 배지를 누르세요)')) return;
   $('#postBtn').disabled = true;
   try {
     const r = await api('/api/post', { method: 'POST', body: { videoId: S.selected.id, text: S.text.trim(), profile: S.profile, title: S.selected.title, persona: S.analysis?.persona } });
@@ -385,6 +423,8 @@ ev.addEventListener('job', (m) => {
   if (j.step === 'failed' && !j.failedAt) j.failedAt = prev?.id === j.id ? prev.step : 'open';
   S.job = j;
   renderJob(); renderPost();
+  // 이 화면에서 지켜본 리허설이 성공하면 리얼로 게시할지 묻는다
+  if (j.step === 'done' && j.dryRun && prev?.id === j.id && prev.step !== 'done') setTimeout(() => askReal(j), 900);
   if (j.step === 'done' || j.step === 'failed') {
     if (S.selected?.id === j.videoId && j.step === 'done' && !j.dryRun) S.selected.commented = { profile: j.profile, status: 'posted' };
     if (S.selected?.id === j.videoId && j.step === 'failed' && j.posted) S.selected.commented = { profile: j.profile, status: 'unverified' };
@@ -393,6 +433,7 @@ ev.addEventListener('job', (m) => {
   }
 });
 ev.addEventListener('log', () => { loadLog(); loadState(); });
+ev.addEventListener('mode', () => loadState());
 
 loadState().then(() => { renderJob(); }).catch((e) => toast('서버에 연결하지 못했어요: ' + e.message, true));
 loadLog();

@@ -41,6 +41,22 @@ export function openForLogin(name) {
   child.unref();
 }
 
+/** 계정 클릭: 그 크롬 프로필로 유튜브를 별도 창(일반 크롬)으로 열고 대시보드 앞에 띄운다 */
+export async function openYouTube(name) {
+  const exe = chromePath();
+  if (!exe) throw new Error('크롬을 찾지 못했어요. .env 의 CHROME_PATH 를 지정해 주세요.');
+  if (open.has(name)) throw new Error(`${name} 프로필로 게시 중이에요. 끝난 뒤 열어 주세요`);
+  if (!fs.existsSync(profileDir(name))) throw new Error(`${name}은 아직 로그인한 적이 없어요`);
+  const child = spawn(exe, [`--user-data-dir=${profileDir(name)}`, '--lang=ko', '--no-first-run', '--no-default-browser-check', '--new-window',
+    '--window-size=1280,900', '--window-position=80,40', 'https://www.youtube.com/?hl=ko'], { detached: true, stdio: 'ignore' });
+  child.unref();
+  if (process.platform === 'win32') {
+    // 창이 대시보드 뒤에 깔리지 않게 앞으로 (잠깐 '항상 위' 후 해제)
+    const ps = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.resolve('scripts', 'front-by-profile.ps1'), '-Dir', profileDir(name)], { windowsHide: true, stdio: 'ignore' });
+    setTimeout(() => { try { ps.kill(); } catch {} }, 15000);
+  }
+}
+
 async function launch(name, { headless = false } = {}) {
   if (open.has(name)) throw new StepError(`${name} 프로필이 이미 사용 중이에요`);
   fs.mkdirSync(profileDir(name), { recursive: true });

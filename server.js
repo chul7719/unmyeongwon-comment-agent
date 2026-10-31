@@ -7,11 +7,12 @@ import { latestVideos, risingVideos, videoDetail, videoCard, parseVideoId } from
 import { draftComment, aiInfo } from './src/ai.js';
 import { validateComment } from './src/rules.js';
 import { log, todayCount, profileTodayCount, videoClaim, checkPostAllowed, previousComments, lastUsedAt, drafts, profileState, SHOTS } from './src/store.js';
-import { postComment, openForLogin, checkLogin, chromePath, logoutProfile, profileDir } from './src/poster.js';
+import { postComment, openForLogin, openYouTube, checkLogin, chromePath, logoutProfile, profileDir } from './src/poster.js';
 
 const cfg = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 // 리허설 모드: 타이핑까지만 하고 게시하지 않음 (기록·상한에 포함되지 않음)
-const DRY_RUN = process.env.DRY_RUN === '1' || process.argv.includes('--rehearsal');
+// 실행 모드: 켤 때는 항상 리허설. 리허설이 성공하면 화면에서 리얼로 게시할지 묻고 바꾼다.
+let MODE = process.argv.includes('--real') ? 'real' : 'rehearsal';
 const app = express();
 app.use(express.json());
 app.use(express.static('public'));
@@ -55,7 +56,7 @@ function decorate(list) {
 app.get('/api/state', wrap(() => ({
   today: todayCount(), max: cfg.limits.daily_max_comments,
   profiles: profilesView(), ai: aiInfo(), youtube: process.env.YOUTUBE_API_KEY ? 'Data API' : '키 없이',
-  chrome: !!chromePath(), job, dryRun: DRY_RUN, comment: cfg.comment, rising: cfg.rising,
+  chrome: !!chromePath(), job, mode: MODE, dryRun: MODE === 'rehearsal', comment: cfg.comment, rising: cfg.rising,
   personas: (cfg.personas || []).map(({ id, name, short }) => ({ id, name, short })),
 })));
 
@@ -135,6 +136,7 @@ function pickProfile(requested) {
 // ③ 댓글 달기 - 운영 규칙은 여기서 강제
 app.post('/api/post', wrap(async (req) => {
   const { videoId, text, profile: requested, title } = req.body || {};
+  const DRY_RUN = MODE === 'rehearsal'; // 이 요청 시점의 모드
   const persona = personaIds().includes(req.body?.persona) ? req.body.persona : null;
   if (job && !['done', 'failed'].includes(job.step)) throw fail(409, '다른 댓글을 게시하는 중이에요. 끝난 뒤 다시 눌러 주세요');
   if (!parseVideoId(videoId)) throw fail(400, '영상을 먼저 골라 주세요');
@@ -146,7 +148,7 @@ app.post('/api/post', wrap(async (req) => {
   const profile = pickProfile(requested);
 
   const entry = log.add({ videoId, title: title || draft?.video?.title || videoId, profile, persona, text: text.trim(), ...(DRY_RUN ? { status: 'rehearsal' } : {}) });
-  job = { id: entry.id, videoId, profile, text: text.trim(), step: 'open', total: [...text.trim()].length, typed: 0, laps: {}, startedAt: Date.now() };
+  job = { id: entry.id, videoId, title: entry.title, profile, persona, dryRun: DRY_RUN, text: text.trim(), step: 'open', total: [...text.trim()].length, typed: 0, laps: {}, startedAt: Date.now() };
   broadcast('job', job);
 
   postComment({
@@ -156,8 +158,8 @@ app.post('/api/post', wrap(async (req) => {
       Object.assign(job, { step }, extra);
       broadcast('job', job);
     },
-  }).then(({ commentUrl, shot, dryRun }) => {
-    log.update(entry.id, dryRun ? { status: 'rehearsal', shot } : { status: 'posted', commentUrl, shot });
+  }).then(({ commentUrl, shot }) => {
+    log.update(entry.id, DRY_RUN ? { status: 'rehearsal', shot } : { status: 'posted', commentUrl, shot });
     profileState.set(profile, { loggedIn: true, checkedAt: new Date().toISOString() });
     broadcast('log', {});
   }).catch((e) => {
@@ -220,9 +222,28 @@ app.post('/api/profiles/:name/logout', wrap(async (req) => {
   return doLogout(req.params.name);
 }));
 
+// 계정 클릭 → 그 크롬 프로필로 유튜브를 별도 창으로 열기 (사용자가 직접 보는 일반 크롬)
+app.post('/api/profiles/:name/open', wrap(async (req) => {
+  const name = req.params.name;
+  if (!cfg.profiles.includes(name)) throw fail(404, '없는 프로필이에요');
+  if (jobRunning() && job.profile === name) throw fail(409, `${name}으로 게시 중이에요. 끝난 뒤 열어 주세요`);
+  try { await openYouTube(name); } catch (e) { throw fail(409, e.message); }
+  return { ok: true };
+}));
+
+// 실행 모드 바꾸기 (리허설 ↔ 리얼)
+app.post('/api/mode', wrap((req) => {
+  const m = req.body?.mode;
+  if (!['rehearsal', 'real'].includes(m)) throw fail(400, '모드가 올바르지 않아요');
+  if (jobRunning()) throw fail(409, '게시 중에는 모드를 바꿀 수 없어요');
+  MODE = m;
+  broadcast('mode', { mode: MODE });
+  return { mode: MODE };
+}));
+
 const port = +process.env.PORT || cfg.port;
 app.listen(port, '127.0.0.1', () => {
   const url = `http://localhost:${port}`;
-  console.log(`\n  운명원 댓글 에이전트 실행 중 → ${url}\n  AI: ${aiInfo() ? `${aiInfo().provider} (${aiInfo().model})` : '키 없음 (.env 확인)'} · YouTube: ${process.env.YOUTUBE_API_KEY ? 'Data API' : '키 없이'}${DRY_RUN ? '\n  ※ 리허설 모드: 타이핑까지만 하고 게시하지 않아요' : ''}\n`);
+  console.log(`\n  운명원 댓글 에이전트 실행 중 → ${url}\n  AI: ${aiInfo() ? `${aiInfo().provider} (${aiInfo().model})` : '키 없음 (.env 확인)'} · YouTube: ${process.env.YOUTUBE_API_KEY ? 'Data API' : '키 없이'}\n  ※ 리허설 모드로 시작해요 (타이핑까지만). 리허설이 성공하면 화면에서 리얼 게시 여부를 물어요\n`);
   if (!process.argv.includes('--no-open') && process.platform === 'win32') spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' }).unref();
 });

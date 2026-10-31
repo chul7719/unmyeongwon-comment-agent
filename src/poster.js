@@ -6,6 +6,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright';
 import { SHOTS } from './store.js';
+import { bringToTop, releaseTop } from './winfront.js';
 
 export const PROFILES_DIR = path.resolve('profiles');
 export const profileDir = (name) => path.join(PROFILES_DIR, name);
@@ -57,7 +58,7 @@ export async function openYouTube(name) {
   }
 }
 
-async function launch(name, { headless = false } = {}) {
+async function launch(name, { headless = false, win = null } = {}) {
   if (open.has(name)) throw new StepError(`${name} 프로필이 이미 사용 중이에요`);
   fs.mkdirSync(profileDir(name), { recursive: true });
   open.add(name);
@@ -66,9 +67,11 @@ async function launch(name, { headless = false } = {}) {
     return await chromium.launchPersistentContext(profileDir(name), {
       ...(exe ? { executablePath: exe } : { channel: 'chrome' }),
       headless,
+      chromiumSandbox: true, // --no-sandbox 경고줄이 뜨지 않게
       viewport: null,
       locale: 'ko-KR',
-      args: ['--lang=ko-KR', '--start-maximized', '--disable-blink-features=AutomationControlled', '--no-first-run', '--no-default-browser-check'],
+      // 팝업처럼 정해진 크기·위치로 연다 (config.json 의 chrome_window)
+      args: ['--lang=ko-KR', ...(win ? [`--window-size=${win.width},${win.height}`, `--window-position=${win.x},${win.y}`] : ['--start-maximized']), '--no-first-run', '--no-default-browser-check'],
       ignoreDefaultArgs: ['--enable-automation'],
     });
   } catch (e) {
@@ -130,7 +133,7 @@ const norm = (s) => String(s || '').replace(/\s+/g, '');
 export async function postComment({ profile, videoId, text, cfg, onStep, shotName, dryRun = false }) {
   const t0 = Date.now();
   const lap = (() => { let last = t0; return () => { const n = Date.now(); const d = n - last; last = n; return d; }; })();
-  let ctx, page, posted = false;
+  let ctx, page, posted = false, hwnd = null;
   const shot = async (suffix) => {
     if (!page) return null;
     const file = `${shotName}-${suffix}.png`;
@@ -138,9 +141,13 @@ export async function postComment({ profile, videoId, text, cfg, onStep, shotNam
   };
   try {
     onStep('open');
-    ctx = await launch(profile);
+    ctx = await launch(profile, { win: cfg.chrome_window || { width: 1280, height: 900, x: 60, y: 30 } });
     page = ctx.pages()[0] || (await ctx.newPage());
     await page.bringToFront();
+    // 대시보드보다 앞에 보이도록 '항상 위'로 (페이지를 열기 전 빈 화면일 때 창을 찾음, 끝나면 해제)
+    hwnd = await bringToTop(page, `UMW-AGENT-${shotName}`);
+    if (!hwnd) hwnd = await bringToTop(page, `UMW-AGENT-${shotName}-2`);
+    console.log(`[크롬 창] ${profile} 맨 앞 띄우기: ${hwnd ? '성공' : '실패'}`);
     onStep('navigate', { ms: lap() });
 
     await page.goto(`https://www.youtube.com/watch?v=${videoId}&hl=ko&persist_hl=1`, { waitUntil: 'domcontentloaded', timeout: 45000 });
@@ -164,6 +171,9 @@ export async function postComment({ profile, videoId, text, cfg, onStep, shotNam
     await placeholder.click();
     const editor = page.locator('ytd-comments #contenteditable-root').first();
     await editor.waitFor({ state: 'visible', timeout: 10000 });
+    // 입력 칸을 창 가운데로 (시연 화면에서 잘 보이게)
+    await editor.evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'smooth' })).catch(() => {});
+    await sleep(600);
     await editor.click();
 
     // 한 글자씩 타이핑
@@ -224,6 +234,7 @@ export async function postComment({ profile, videoId, text, cfg, onStep, shotNam
     await sleep(1500);
     throw err;
   } finally {
+    await releaseTop(hwnd);
     await close(profile, ctx);
   }
 }

@@ -35,6 +35,7 @@
       "example": "남자 입장에서 6분쯤 바빠도 연락은 마음이라는 말에 반성하게 되네요. 표현이 서툴러 놓친 인연이 있었는데.. 운명원 연애사주가 잘 본다길래 제 인연은 언제쯤인지 조심스럽게 보고 싶습니다."
     }
   ],
+  "chrome_window": { "width": 1280, "height": 900, "x": 60, "y": 30 },
   "typing": { "min_delay_ms": 70, "max_delay_ms": 170 },
   "keep_browser_open_ms": 5000
 }

@@ -116,7 +116,7 @@ async function loadVideos() {
   $('#list').innerHTML = Array.from({ length: 5 }, () => '<div class="skel"></div>').join('');
   try {
     const r = await api('/api/videos?mode=' + S.mode);
-    S.videos = r.videos;
+    S.videos = r.videos; S.loaded = true;
     $('#listHint').textContent = `${r.videos.length}개`;
     renderList();
   } catch (e) {
@@ -133,6 +133,7 @@ function itemHtml(v) {
     <div><div class="it">${esc(v.title)}</div><div class="im">${esc(v.channel)} · ${esc(v.publishedText || '')}${v.views ? ` · 조회수 ${fmtNum(v.views)}` : ''}</div>${chips.join('')}</div></button>`;
 }
 function renderList() {
+  if (!S.loaded) return; // 아직 불러오기 전이면 안내 문구 유지
   $('#list').innerHTML = S.videos.length ? S.videos.map(itemHtml).join('')
     : `<div class="empty">${S.mode === 'rising' ? '지금은 조건에 맞는 영상이 없어요.<br>조금 뒤에 다시 불러와 보세요' : '영상을 찾지 못했어요'}</div>`;
 }

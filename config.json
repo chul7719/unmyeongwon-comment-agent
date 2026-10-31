@@ -1,5 +1,5 @@
 {
-  "port": 5173,
+  "port": 5174,
   "profiles": ["유튜브1", "유튜브2", "유튜브3"],
   "comment": { "min_chars": 40, "max_chars": 120, "brand": "운명원" },
   "limits": { "daily_max_comments": 10 },

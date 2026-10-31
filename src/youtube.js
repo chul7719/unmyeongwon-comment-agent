@@ -5,6 +5,10 @@
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
 const API_KEY = () => process.env.YOUTUBE_API_KEY?.trim();
+// API 키가 할당량 초과 등으로 막히면 30분 동안 키 없이 읽기로 자동 전환
+let apiBlockedUntil = 0;
+const apiUsable = () => !!API_KEY() && Date.now() > apiBlockedUntil;
+function apiFailed(e) { apiBlockedUntil = Date.now() + 30 * 60e3; console.log(`[YouTube API] ${String(e?.message || e).slice(0, 90)} → 30분 동안 키 없이 읽기`); }
 
 // 검색 필터 (유튜브 검색 화면의 "필터"와 같은 값)
 const SP = {
@@ -132,7 +136,10 @@ async function searchApi(query, period = 'week') {
     });
 }
 
-const search = (q, period, pages) => (API_KEY() ? searchApi(q, period) : searchKeyless(q, period, pages));
+const search = async (q, period, pages, order) => {
+  if (apiUsable()) { try { return await searchApi(q, period, pages, order); } catch (e) { apiFailed(e); } }
+  return searchKeyless(String(q).trim() ? q : ' ', period, pages);
+};
 
 function dedupe(list) {
   const seen = new Set();
@@ -218,7 +225,7 @@ async function topCommentsKeyless(data, limit = 20) {
 
 async function topCommentsApi(id, limit = 20) {
   const d = await fetch(`https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&order=relevance&maxResults=${limit}&videoId=${id}&key=${API_KEY()}`).then((r) => r.json());
-  if (d.error) return [];
+  if (d.error) { if (/quota|rate/i.test(d.error.message || '')) apiFailed(new Error(d.error.message)); return []; }
   return d.items.map((i) => ({ text: i.snippet.topLevelComment.snippet.textOriginal, likes: i.snippet.topLevelComment.snippet.likeCount })).sort((a, b) => b.likes - a.likes);
 }
 
@@ -232,7 +239,7 @@ export async function videoDetail(id) {
   const commentsDisabled = /댓글이 사용 중지|Comments are turned off/.test(JSON.stringify(walk(data, 'messageRenderer')));
   const getComments = async () => {
     if (commentsDisabled) return [];
-    if (API_KEY()) return topCommentsApi(id);
+    if (apiUsable()) { const c = await topCommentsApi(id); if (c.length) return c; }
     let c = await topCommentsKeyless(data).catch(() => []);
     if (!c.length) { const again = await watchPage(id).catch(() => null); if (again?.data) c = await topCommentsKeyless(again.data).catch(() => []); }
     return c;

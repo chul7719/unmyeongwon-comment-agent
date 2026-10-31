@@ -14,10 +14,16 @@
     <span>오늘 게시 <b id="today">0 / 10</b><span class="meter"><span id="meter" style="width:0"></span></span></span>
     <span>AI <b id="aiName">-</b></span>
     <span>YouTube <b id="ytMode">-</b></span>
+    <button class="autobtn" id="autoBtn" title="영상 불러오기 → 선택 → 초안 → 자동 배정 → 게시를 자동으로">▶ 전체 자동</button>
     <button class="st warn modebtn" id="dryBadge" title="눌러서 리허설/리얼 전환">모드 확인 중</button>
     <button class="btn-ghost" id="openSettings">계정 설정</button>
   </div>
 </header>
+<div class="autobar" id="autoBar" hidden>
+  <b>전체 자동</b><span class="autocount" id="autoCount"></span><span class="autostep" id="autoStep"></span>
+  <span class="autosum" id="autoSum"></span>
+  <button class="btn-ghost" id="autoStop">중단</button>
+</div>
 
 <main>
   <!-- ① 영상 불러오기 -->
@@ -85,6 +91,29 @@
   <div class="dlgf stack">
     <button class="primary accent" id="realGo">리얼 모드로 바꾸고 바로 게시</button>
     <div class="row2"><button class="btn-ghost" id="realOnly">리얼 모드로만 바꾸기</button><button class="btn-ghost" id="realStay">리허설 계속</button></div>
+  </div>
+</dialog>
+
+<!-- 전체 자동: 시작 설정 -->
+<dialog id="autoDlg">
+  <div class="dlgh"><h2>전체 자동</h2></div>
+  <p class="dlgp">영상 불러오기 → 영상 선택 → AI 초안 → 계정 자동 배정(한 영상엔 한 계정) → 댓글 게시를 차례로 자동 진행해요. 화면의 ①②③ 칸이 실제로 움직이며 보여 줘요.</p>
+  <div class="autoform">
+    <label>가져올 영상<select id="autoTab"><option value="latest">최신 연애 영상</option><option value="rising">뜨기 직전</option></select></label>
+    <label>게시할 개수<input id="autoCount2" type="number" min="1" max="10" value="3"></label>
+  </div>
+  <div class="automode" id="autoModeInfo"></div>
+  <div class="dlgf"><span style="flex:1"></span><button class="btn-ghost" id="autoCancel">취소</button><button class="primary accent inline" id="autoStart">시작</button></div>
+</dialog>
+
+<!-- 전체 자동: 첫 리허설 성공 후 -->
+<dialog id="autoRealDlg">
+  <div class="dlgh"><h2>첫 리허설 성공</h2></div>
+  <p class="dlgp">첫 영상의 리허설(입력까지)이 문제없이 끝났어요. 게시는 하지 않았어요.<br>남은 영상은 어떻게 할까요?</p>
+  <div class="realbox"><div class="muted" id="autoRealMeta"></div><div class="realtext" id="autoRealText"></div></div>
+  <div class="dlgf stack">
+    <button class="primary accent" id="autoGoReal">리얼 모드로 바꾸고 이 댓글부터 실제 게시</button>
+    <div class="row2"><button class="btn-ghost" id="autoKeepRehearsal">리허설로 계속</button><button class="btn-ghost" id="autoHalt">여기서 중단</button></div>
   </div>
 </dialog>
 

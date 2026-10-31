@@ -97,6 +97,136 @@ $('#realGo').onclick = async () => {
   } catch (e) { toast(e.message, true); }
 };
 
+/* ---------- 전체 자동 (E2E): 불러오기 → 선택 → 초안 → 자동 배정 → 게시 ---------- */
+S.auto = null;
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+function autoStep(msg) { $('#autoStep').textContent = msg; }
+function autoCountText() { const a = S.auto; $('#autoCount').textContent = `${a.done} / ${a.count}`; }
+function autoSummary() {
+  const r = S.auto.results, n = (k) => r.filter((x) => x.kind === k).length;
+  return [n('posted') && `게시 ${n('posted')}`, n('rehearsal') && `리허설 ${n('rehearsal')}`, n('skip') && `건너뜀 ${n('skip')}`, n('fail') && `실패 ${n('fail')}`].filter(Boolean).join(' · ');
+}
+// 게시 작업이 끝날 때까지 기다리기 (실시간 이벤트로 알림)
+function waitJob(id) { return new Promise((res) => { S.autoWaiter = { id, res }; }); }
+// 첫 리허설 성공 후 선택: 'real' | 'rehearsal' | 'stop'
+function askAutoReal(j) {
+  return new Promise((res) => {
+    $('#autoRealMeta').textContent = `${j.title || j.videoId} · ${j.profile}${j.persona ? ' · ' + personaName(j.persona) : ''}`;
+    $('#autoRealText').textContent = j.text;
+    const done = (v) => { $('#autoRealDlg').close(); res(v); };
+    $('#autoGoReal').onclick = () => done('real');
+    $('#autoKeepRehearsal').onclick = () => done('rehearsal');
+    $('#autoHalt').onclick = () => done('stop');
+    $('#autoRealDlg').oncancel = (e) => { e.preventDefault(); };
+    $('#autoRealDlg').showModal();
+  });
+}
+async function autoGap(sec) {
+  for (let s = sec; s > 0 && !S.auto.stop; s--) { autoStep(`다음 영상까지 ${s}초 쉬는 중 (사람처럼 간격 두기)`); await sleepMs(1000); }
+}
+
+$('#autoBtn').onclick = () => {
+  if (S.auto?.running) return;
+  if (S.job && !['done', 'failed'].includes(S.job.step)) return toast('게시가 끝난 뒤 시작해 주세요', true);
+  const real = !S.state.dryRun;
+  const left = Math.max(0, S.state.max - S.state.today);
+  $('#autoTab').value = S.mode || 'latest';
+  $('#autoCount2').max = real ? left : 10;
+  $('#autoCount2').value = Math.min(+$('#autoCount2').value || 3, real ? left : 10) || 1;
+  const info = $('#autoModeInfo');
+  info.className = 'automode ' + (real ? 'real' : 'rehearsal');
+  info.innerHTML = real
+    ? `<b>리얼 모드</b>예요. 시작하면 댓글이 <b>실제로 게시</b>돼요. (오늘 남은 게시 ${left}개)`
+    : `<b>리허설 모드</b>예요. 첫 영상은 입력까지만 하고, 성공하면 리얼로 게시할지 물어봐요.`;
+  $('#autoDlg').showModal();
+};
+$('#autoCancel').onclick = () => $('#autoDlg').close();
+$('#autoStart').onclick = () => {
+  const count = Math.max(1, Math.min(10, +$('#autoCount2').value || 1));
+  const tab = $('#autoTab').value;
+  if (!S.state.dryRun && !confirm(`리얼 모드로 최대 ${count}개 댓글을 실제로 게시해요. 시작할까요?`)) return;
+  $('#autoDlg').close();
+  runAuto({ count, tab });
+};
+$('#autoStop').onclick = () => {
+  if (!S.auto) return;
+  if (!S.auto.running) { $('#autoBar').hidden = true; return; }
+  S.auto.stop = true; autoStep('지금 하는 단계까지만 끝내고 멈추는 중...');
+};
+
+async function runAuto({ count, tab }) {
+  S.auto = { running: true, stop: false, done: 0, count, results: [] };
+  const bar = $('#autoBar'); bar.hidden = false; bar.classList.remove('done');
+  $('#autoStop').textContent = '중단'; $('#autoSum').textContent = '';
+  $('#autoBtn').disabled = true; autoCountText();
+  const result = (v, kind, why) => { S.auto.results.push({ v, kind, why }); $('#autoSum').textContent = autoSummary(); };
+  let askedReal = false;
+  try {
+    // ① 영상 불러오기
+    autoStep('① 영상 불러오는 중...');
+    S.mode = tab;
+    [...$('#modeSeg').children].forEach((x) => x.classList.toggle('on', x.dataset.mode === tab));
+    await loadVideos();
+    const queue = S.videos.filter((v) => !v.commented);
+    if (!queue.length) throw new Error('댓글을 달 수 있는 영상이 없어요');
+    for (const v of queue) {
+      if (S.auto.stop || S.auto.done >= count) break;
+      await loadState();
+      if (!S.state.dryRun && S.state.today >= S.state.max) { autoStep(`오늘 게시 상한 ${S.state.max}개에 도달해서 멈췄어요`); break; }
+      // ② 영상 선택 + AI 초안
+      const n = S.auto.done + 1;
+      autoStep(`② ${n}번째 영상 선택 · AI 초안 쓰는 중: ${v.title}`);
+      document.querySelector(`.item[data-id="${v.id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      await selectVideo(v);
+      if (S.auto.stop) break;
+      const why = postBlocker();
+      if (S.analysis?.error || why) { result(v, 'skip', S.analysis?.error || why); autoStep(`건너뜀: ${S.analysis?.error || why}`); await sleepMs(1200); continue; }
+      // ③ 계정 자동 배정 + 게시 (한 영상엔 한 계정: 서버가 강제)
+      S.profile = 'auto'; renderAccounts();
+      autoStep(`③ ${autoTarget()} 계정으로 ${S.state.dryRun ? '리허설(입력만)' : '댓글 게시'} 중...`);
+      let r;
+      try { r = await api('/api/post', { method: 'POST', body: { videoId: v.id, text: S.text.trim(), profile: 'auto', title: v.title, persona: S.analysis?.persona } }); }
+      catch (e) { result(v, 'skip', e.message); autoStep(`건너뜀: ${e.message}`); await sleepMs(1200); continue; }
+      let j = await waitJob(r.jobId);
+      if (j.step === 'failed') {
+        result(v, 'fail', j.reason);
+        if (/로그인|창이 이미 열려|사용 중이에요|크롬/.test(j.reason || '')) { autoStep(`멈춤: ${j.reason}`); break; }
+        continue;
+      }
+      if (j.dryRun) {
+        if (!askedReal) {
+          askedReal = true;
+          const choice = await askAutoReal(j);
+          if (choice === 'stop') { result(v, 'rehearsal'); S.auto.done++; autoCountText(); break; }
+          if (choice === 'real') {
+            await switchMode('real');
+            autoStep(`③ 리얼 모드 · ${j.profile} 계정으로 같은 댓글 게시 중...`);
+            const r2 = await api('/api/post', { method: 'POST', body: { videoId: j.videoId, text: j.text, profile: j.profile, title: j.title, persona: j.persona } });
+            j = await waitJob(r2.jobId);
+            if (j.step === 'failed') { result(v, 'fail', j.reason); continue; }
+            result(v, 'posted'); S.auto.done++; autoCountText();
+            if (S.auto.done < count && !S.auto.stop) await autoGap(8 + Math.floor(Math.random() * 8));
+            continue;
+          }
+        }
+        result(v, 'rehearsal');
+      } else result(v, 'posted');
+      S.auto.done++; autoCountText();
+      if (S.auto.done < count && !S.auto.stop) await autoGap(8 + Math.floor(Math.random() * 8));
+    }
+  } catch (e) { toast(e.message, true); autoStep(e.message); }
+  finally {
+    const stopped = S.auto.stop;
+    S.auto.running = false;
+    $('#autoBtn').disabled = false;
+    bar.classList.add('done');
+    autoStep(`${stopped ? '중단했어요' : '끝났어요'} · ${autoSummary() || '진행한 영상 없음'}`);
+    $('#autoSum').textContent = '';
+    $('#autoStop').textContent = '닫기';
+    loadLog(); loadState();
+  }
+}
+
 /* ---------- ① 영상 불러오기 ---------- */
 $('#modeSeg').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
@@ -425,7 +555,9 @@ ev.addEventListener('job', (m) => {
   S.job = j;
   renderJob(); renderPost();
   // 이 화면에서 지켜본 리허설이 성공하면 리얼로 게시할지 묻는다
-  if (j.step === 'done' && j.dryRun && prev?.id === j.id && prev.step !== 'done') setTimeout(() => askReal(j), 900);
+  // 전체 자동이 기다리는 작업이 끝나면 알려 주기
+  if (S.autoWaiter && j.id === S.autoWaiter.id && (j.step === 'done' || j.step === 'failed')) { const w = S.autoWaiter; S.autoWaiter = null; setTimeout(() => w.res(j), 400); }
+  if (j.step === 'done' && j.dryRun && !S.auto?.running && prev?.id === j.id && prev.step !== 'done') setTimeout(() => askReal(j), 900);
   if (j.step === 'done' || j.step === 'failed') {
     if (S.selected?.id === j.videoId && j.step === 'done' && !j.dryRun) S.selected.commented = { profile: j.profile, status: 'posted' };
     if (S.selected?.id === j.videoId && j.step === 'failed' && j.posted) S.selected.commented = { profile: j.profile, status: 'unverified' };

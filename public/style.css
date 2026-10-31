@@ -192,3 +192,23 @@ dialog::backdrop{background:rgba(28,25,23,.35)}
 .realbox{background:var(--soft);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
 .realtext{font-size:14.5px;line-height:1.6}
 .muted{color:var(--sub);font-size:12px}
+/* 전체 자동 */
+.autobtn{border:0;border-radius:9px;background:var(--ink);color:#fff;font:inherit;font-size:13px;font-weight:700;padding:7px 14px;cursor:pointer}
+.autobtn:hover{opacity:.9}
+.autobtn:disabled{opacity:.4;cursor:default}
+.autobar{position:sticky;top:57px;z-index:4;display:flex;align-items:center;gap:12px;padding:10px 24px;background:#1C1917;color:#fff;font-size:13px}
+.autobar b{background:var(--accent);padding:2px 9px;border-radius:6px;font-size:12px}
+.autobar .autocount{font-weight:700;font-variant-numeric:tabular-nums}
+.autobar .autostep{opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.autobar .autosum{opacity:.85;font-size:12px}
+.autobar .btn-ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.3)}
+.autobar.done{background:#14532D}
+.autoform{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+.autoform label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:600;color:var(--sub)}
+.autoform select,.autoform input{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;color:var(--ink)}
+.automode{margin-top:12px;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6}
+.automode.rehearsal{background:var(--warn-soft);color:#78350F}
+.automode.real{background:var(--err-soft);color:var(--err)}
+.primary.inline{width:auto;padding:9px 18px;font-size:13px}
+#autoDlg,#autoRealDlg{width:520px}
+.item.autopick{outline:2px solid var(--accent);outline-offset:2px}

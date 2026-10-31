@@ -1,3 +1,4 @@
+// © 2026 윤신철 (github.com/chul7719). All rights reserved. 무단 복제·수정·상업적 사용 금지 — LICENSE 참고
 // 유튜브 데이터 가져오기
 // - YOUTUBE_API_KEY 가 있으면 공식 Data API v3 로 검색
 // - 없으면 유튜브 웹이 쓰는 내부 API(youtubei)로 키 없이 동작

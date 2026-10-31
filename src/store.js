@@ -1,3 +1,4 @@
+// © 2026 윤신철 (github.com/chul7719). All rights reserved. 무단 복제·수정·상업적 사용 금지 — LICENSE 참고
 // 기록 저장소 (data/log.json) + 운영 규칙 강제
 import fs from 'node:fs';
 import path from 'node:path';

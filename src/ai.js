@@ -1,3 +1,4 @@
+// © 2026 윤신철 (github.com/chul7719). All rights reserved. 무단 복제·수정·상업적 사용 금지 — LICENSE 참고
 // AI 댓글 초안: 고민 정리 → 장면 고르기 → 시청자 페르소나 댓글
 import dotenv from 'dotenv';
 import { validateComment } from './rules.js';

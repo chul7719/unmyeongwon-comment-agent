@@ -212,3 +212,5 @@ dialog::backdrop{background:rgba(28,25,23,.35)}
 .primary.inline{width:auto;padding:9px 18px;font-size:13px}
 #autoDlg,#autoRealDlg{width:520px}
 .item.autopick{outline:2px solid var(--accent);outline-offset:2px}
+/* 저작권 표시 */
+.copy{text-align:center;font-size:11.5px;color:var(--sub);padding:4px 24px 22px}

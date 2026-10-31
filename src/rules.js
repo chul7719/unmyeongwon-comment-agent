@@ -1,3 +1,4 @@
+// © 2026 윤신철 (github.com/chul7719). All rights reserved. 무단 복제·수정·상업적 사용 금지 — LICENSE 참고
 // 댓글 규칙 검사. 서버가 게시 직전에 반드시 다시 검사하므로 화면에서 우회할 수 없다.
 
 const LINK = /(https?:\/\/|www\.|\b[\w-]+\.(com|net|kr|co|io|me|ly|site|shop)\b|youtu\.?be)/i;

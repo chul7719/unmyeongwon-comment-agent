@@ -1,3 +1,4 @@
+// © 2026 윤신철 (github.com/chul7719). All rights reserved. 무단 복제·수정·상업적 사용 금지 — LICENSE 참고
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,6 +15,9 @@ const cfg = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 // 실행 모드: 켤 때는 항상 리허설. 리허설이 성공하면 화면에서 리얼로 게시할지 묻고 바꾼다.
 let MODE = process.argv.includes('--real') ? 'real' : 'rehearsal';
 const app = express();
+// 저작권 표식: 이 프로그램이 다른 곳에서 돌아가면 응답 헤더로 확인할 수 있다
+app.disable('x-powered-by');
+app.use((req, res, next) => { res.set('X-Powered-By', 'umw-comment-agent (c) 2026 Yun Shincheol ysc-7719'); next(); });
 app.use(express.json());
 app.use(express.static('public'));
 app.use('/shots', express.static(SHOTS));

@@ -1,0 +1,38 @@
+Copyright (c) 2026 윤신철 (Yun Shincheol, github.com/chul7719). All rights reserved.
+
+[한국어]
+
+이 저장소의 소스 코드, 프롬프트, 규칙, 설정, 문서, 화면 디자인(이하 "본 소프트웨어")의 저작권은
+윤신철에게 있습니다.
+
+1. 허용 범위
+   (주)제이지그룹 AI PM 선발 과제(TRACK 2) 심사를 위해, 심사 담당자가 심사 기간 동안
+   본 소프트웨어를 열람하고 실행해 보는 것만 허용합니다.
+   (과제 안내문: "저작권은 지원자에게 있으며 심사 목적으로만 열람합니다.")
+
+2. 금지 사항 (저작권자의 서면 허락이 없는 한)
+   - 본 소프트웨어의 전부 또는 일부를 복제, 수정, 2차 저작물 작성, 재배포하는 행위
+   - 본 소프트웨어 또는 그 일부를 이용해 서비스, 제품, 마케팅 대행 업무를 제공하거나
+     영리 목적으로 사용하는 행위
+   - 본 소프트웨어의 프롬프트·규칙·구조를 옮겨 다른 프로그램에 쓰는 행위
+   - 본 소프트웨어를 AI 모델 학습 데이터로 쓰는 행위
+   - 이 저작권 표시와 라이선스 문구를 지우거나 바꾸는 행위
+
+3. 사용 문의: chul7719@gmail.com
+
+4. 본 소프트웨어가 사용하는 오픈소스(Playwright, Express, dotenv, Pretendard 등)는
+   각각의 라이선스를 따르며, 이 라이선스는 그 오픈소스에는 적용되지 않습니다.
+
+5. 본 소프트웨어는 있는 그대로 제공되며, 사용으로 생기는 결과에 대해 저작권자는
+   책임지지 않습니다.
+
+[English]
+
+All rights reserved. Viewing and running this software is permitted ONLY for the purpose of
+evaluating the JG Group AI PM selection assignment (TRACK 2) during its evaluation period.
+Any copying, modification, derivative works, redistribution, commercial use, provision of
+services based on this software, reuse of its prompts/rules/structure, or use as AI training
+data is prohibited without prior written permission from the copyright holder.
+Contact: chul7719@gmail.com
+Third-party open-source components remain under their own licenses.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.

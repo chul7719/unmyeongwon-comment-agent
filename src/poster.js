@@ -1,3 +1,4 @@
+// © 2026 윤신철 (github.com/chul7719). All rights reserved. 무단 복제·수정·상업적 사용 금지 — LICENSE 참고
 // ③ 크롬 프로필을 열어 댓글을 한 글자씩 입력 → 게시 → 내 댓글 확인
 // 크롬은 평소 쓰는 기본 프로필의 자동 제어를 막으므로, 프로젝트 안 profiles/<이름> 폴더를
 // 별도 user-data-dir 로 쓰는 "전용 크롬 프로필"을 만든다. (launchPersistentContext)

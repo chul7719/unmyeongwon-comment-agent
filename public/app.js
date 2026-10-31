@@ -147,7 +147,7 @@ $('#linkForm').addEventListener('submit', async (e) => {
   const url = $('#linkInput').value.trim(); if (!url) return;
   try {
     const { video } = await api('/api/videos/link', { method: 'POST', body: { url } });
-    S.videos = [video, ...S.videos.filter((v) => v.id !== video.id)];
+    S.videos = [video, ...S.videos.filter((v) => v.id !== video.id)]; S.loaded = true;
     $('#linkInput').value = '';
     renderList(); selectVideo(video);
   } catch (err) { toast(err.message, true); }

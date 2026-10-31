@@ -59,6 +59,8 @@ export async function openYouTube(name) {
 }
 
 async function launch(name, { headless = false, win = null } = {}) {
+  // 바로 앞 작업이 크롬을 닫는 중일 수 있어 최대 15초 기다린다
+  for (let i = 0; i < 60 && open.has(name); i++) await sleep(250);
   if (open.has(name)) throw new StepError(`${name} 프로필이 이미 사용 중이에요`);
   fs.mkdirSync(profileDir(name), { recursive: true });
   open.add(name);
@@ -177,17 +179,39 @@ export async function postComment({ profile, videoId, text, cfg, onStep, shotNam
     await editor.click();
 
     // 한 글자씩 타이핑
+    // 새 영상(댓글 0개 등)에서는 유튜브가 댓글 영역을 한 번 더 그리면서 입력 칸이 바뀌어 친 글자가 사라질 수 있다.
+    // → 입력 칸이 안정될 때까지 잠깐 기다리고, 글자마다 '지금의' 입력 칸에 넣으며, 어긋나면 지우고 한 번 더 입력한다.
     const chars = [...text];
     onStep('typing', { ms: lap(), typed: 0, total: chars.length });
-    for (let i = 0; i < chars.length; i++) {
-      await page.keyboard.type(chars[i]);
-      const ch = chars[i];
-      await sleep(rand(cfg.typing.min_delay_ms, cfg.typing.max_delay_ms) + (/[.,!?ㅠㅋ~]/.test(ch) ? 120 : 0) + (ch === ' ' ? 40 : 0));
-      if (i % 2 === 1 || i === chars.length - 1) onStep('typing', { typed: i + 1, total: chars.length });
+    const ensureEditor = async () => {
+      if (!(await editor.isVisible().catch(() => false))) {
+        await placeholder.scrollIntoViewIfNeeded().catch(() => {});
+        await placeholder.click().catch(() => {});
+        await editor.waitFor({ state: 'visible', timeout: 10000 });
+      }
+      await editor.click();
+    };
+    await sleep(1500);
+    let typedOk = false;
+    for (let attempt = 1; attempt <= 2 && !typedOk; attempt++) {
+      await ensureEditor();
+      if (attempt > 1) {
+        await page.keyboard.press('Control+A');
+        await page.keyboard.press('Delete');
+        await sleep(400);
+        onStep('typing', { typed: 0, total: chars.length, retry: true });
+      }
+      for (let i = 0; i < chars.length; i++) {
+        await editor.pressSequentially(chars[i]); // 매번 현재 입력 칸을 다시 찾아 넣음
+        const ch = chars[i];
+        await sleep(rand(cfg.typing.min_delay_ms, cfg.typing.max_delay_ms) + (/[.,!?ㅠㅋ~]/.test(ch) ? 120 : 0) + (ch === ' ' ? 40 : 0));
+        if (i % 2 === 1 || i === chars.length - 1) onStep('typing', { typed: i + 1, total: chars.length });
+      }
+      await sleep(500);
+      typedOk = norm(await editor.innerText().catch(() => '')) === norm(text);
+      if (!typedOk) console.log(`[입력 확인] ${attempt}번째 입력이 초안과 달라 ${attempt < 2 ? '지우고 다시 입력' : '중단'}`);
     }
-    await sleep(500);
-    const typed = await editor.innerText();
-    if (norm(typed) !== norm(text)) throw new StepError('입력된 글자가 초안과 달라요 (입력 중 다른 키가 눌렸을 수 있어요). 게시하지 않았어요');
+    if (!typedOk) throw new StepError('입력된 글자가 초안과 달라요 (두 번 시도). 게시하지 않았어요');
 
     onStep('post', { ms: lap() });
     if (dryRun) {

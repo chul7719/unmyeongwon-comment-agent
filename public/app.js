@@ -281,6 +281,8 @@ function renderPost() {
 
 $('#postBtn').addEventListener('click', async () => {
   if (postBlocker()) return;
+  // 리얼 모드에서는 게시 전에 한 번 더 확인
+  if (!S.state.dryRun && !confirm('리얼 모드예요. 이 댓글이 유튜브에 실제로 게시돼요.\n계속할까요?\n\n(연습만 하려면 바탕화면 [운명원 댓글 에이전트 (리허설)] 아이콘으로 켜세요)')) return;
   $('#postBtn').disabled = true;
   try {
     const r = await api('/api/post', { method: 'POST', body: { videoId: S.selected.id, text: S.text.trim(), profile: S.profile, title: S.selected.title, persona: S.analysis?.persona } });
